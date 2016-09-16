@@ -40,8 +40,8 @@ case "$LINUX" in
     PKG_SOURCE_DIR="$PKG_NAME-amlogic-$PKG_VERSION*"
     ;;
   amlogic-3.14)
-    PKG_VERSION="c733661"
-    PKG_URL="https://github.com/LibreELEC/linux-amlogic/archive/$PKG_VERSION.tar.gz"
+    PKG_VERSION="56cd873"
+    PKG_URL="https://github.com/Extro-development/linux-amlogic/archive/$PKG_VERSION.tar.gz"
     PKG_SOURCE_DIR="$PKG_NAME-amlogic-$PKG_VERSION*"
     ;;
   imx6)
