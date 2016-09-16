@@ -21,8 +21,9 @@ PKG_REV="1"
 PKG_ARCH="arm aarch64"
 PKG_LICENSE="GPL"
 PKG_SITE="http://openlinux.amlogic.com:8000/download/ARM/wifi/"
-PKG_VERSION="1.201.59.5-b82e63f"
-PKG_URL="$DISTRO_SRC/$PKG_NAME-$PKG_VERSION.tar.xz"
+PKG_VERSION="222610f"
+PKG_URL="https://github.com/Extro-development/bcmdhd_1_201_59_x/archive/$PKG_VERSION.tar.gz"
+PKG_SOURCE_DIR="bcmdhd_1_201_59_x-$PKG_VERSION*"
 PKG_DEPENDS_TARGET="toolchain linux wlan-firmware-aml"
 PKG_NEED_UNPACK="$LINUX_DEPENDS"
 PKG_PRIORITY="optional"
@@ -34,9 +35,8 @@ PKG_IS_ADDON="no"
 PKG_AUTORECONF="no"
 
 make_target() {
-  cd bcmdhd_1_201_59_x
   LDFLAGS="" make V=1 \
-    -C $(kernel_path) M=$ROOT/$PKG_BUILD/bcmdhd_1_201_59_x \
+    -C $(kernel_path) M=$ROOT/$PKG_BUILD \
     ARCH=$TARGET_KERNEL_ARCH \
     CROSS_COMPILE=$TARGET_PREFIX
 }
@@ -44,7 +44,4 @@ make_target() {
 makeinstall_target() {
   mkdir -p $INSTALL/lib/modules/$(get_module_dir)/bcmdhd
   cp *.ko $INSTALL/lib/modules/$(get_module_dir)/bcmdhd
-
-  mkdir -p $INSTALL/lib/firmware/brcm
-  cp $PKG_DIR/config/config.txt $INSTALL/lib/firmware/brcm
 }
