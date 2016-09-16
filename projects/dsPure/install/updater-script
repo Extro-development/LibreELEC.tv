@@ -1,0 +1,15 @@
+getprop("ro.product.device") == "dotsmart_pure" || abort("This package is for \"dotsmart_pure\" devices; this is a \"" + getprop("ro.product.device") + "\".");
+show_progress(0.500000, 3);
+ui_print("Writing kernel image");
+assert(package_extract_file("KERNEL", "/tmp/boot.img"),
+    write_raw_image("/tmp/boot.img", "linux"),
+    delete("/tmp/boot.img"));
+show_progress(0.020000, 0);
+ui_print("Wiping System");
+format("ext4", "EMMC", "/dev/block/syslinux", "0", "/system");
+mount("ext4", "EMMC", "/dev/block/syslinux", "/system");
+ui_print("Writing system files");
+package_extract_dir("system", "/system");
+unmount("/system");
+show_progress(0.100000, 0);
+ui_print("OpenELEC Installed Successfully");
