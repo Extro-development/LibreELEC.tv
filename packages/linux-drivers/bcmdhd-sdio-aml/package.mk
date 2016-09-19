@@ -16,20 +16,20 @@
 #  along with LibreELEC.  If not, see <http://www.gnu.org/licenses/>.
 ################################################################################
 
-PKG_NAME="brcmap6xxx-aml"
+PKG_NAME="bcmdhd-sdio-aml"
 PKG_REV="1"
 PKG_ARCH="arm aarch64"
 PKG_LICENSE="GPL"
 PKG_SITE="http://openlinux.amlogic.com:8000/download/ARM/wifi/"
-PKG_VERSION="222610f"
-PKG_URL="https://github.com/Extro-development/bcmdhd_1_201_59_x/archive/$PKG_VERSION.tar.gz"
-PKG_SOURCE_DIR="bcmdhd_1_201_59_x-$PKG_VERSION*"
+PKG_VERSION="8bb6b4d"
+PKG_URL="https://github.com/Extro-development/bcmdhd-sdio-aml/archive/$PKG_VERSION.tar.gz"
+PKG_SOURCE_DIR="$PKG_NAME-$PKG_VERSION*"
 PKG_DEPENDS_TARGET="toolchain linux wlan-firmware-aml"
 PKG_NEED_UNPACK="$LINUX_DEPENDS"
 PKG_PRIORITY="optional"
 PKG_SECTION="driver"
-PKG_SHORTDESC="brcmap6xxx-aml: Linux drivers for AP6xxx WLAN chips used in some devices based on Amlogic SoCs"
-PKG_LONGDESC="brcmap6xxx-aml: Linux drivers for AP6xxx WLAN chips used in some devices based on Amlogic SoCs"
+PKG_SHORTDESC="bcmdhd-sdio-aml: Linux drivers for Ampak Broadcom based WLAN chips used in some devices based on Amlogic SoCs"
+PKG_LONGDESC="bcmdhd-sdio-aml: Linux drivers for Ampak Broadcom based WLAN chips used in some devices based on Amlogic SoCs"
 
 PKG_IS_ADDON="no"
 PKG_AUTORECONF="no"
