@@ -6,6 +6,8 @@ ACTION!="add", GOTO="end"
 SUBSYSTEMS=="sdio", ATTRS{vendor}=="0x02d0", ATTRS{device}=="0xa962", GOTO="begin"
 SUBSYSTEMS=="sdio", ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4330", GOTO="begin"
 SUBSYSTEMS=="sdio", ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4335", GOTO="begin"
+SUBSYSTEMS=="sdio", ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4354", GOTO="begin"
+SUBSYSTEMS=="sdio", ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4356", GOTO="begin"
 GOTO="end"
 LABEL="begin"
 ### Broadcom bcm43362/bcm20710a1 bluetooth device
@@ -19,6 +21,14 @@ ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4330", \
 ### Broadcom bcm4335/bcm4335c0 bluetooth device
 ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4335", \
   ENV{brcm_device}="bcm4335c0"
+
+### Broadcom bcm4354/bcm4354a1 bluetooth device
+ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4354", \
+  ENV{brcm_device}="bcm4354a1"
+
+### Broadcom bcm4356/bcm4356a2 bluetooth device
+ATTRS{vendor}=="0x02d0", ATTRS{device}=="0x4356", \
+  ENV{brcm_device}="bcm4356a2"
 
 ENV{brcm_device}=="bcm*", ACTION=="add", \
   TAG+="systemd", ENV{SYSTEMD_WANTS}+="brcmfmac_sdio-firmware@$env{brcm_device}.service"
