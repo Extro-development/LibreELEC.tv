@@ -222,6 +222,12 @@ else
   KODI_VAAPI="--disable-vaapi"
 fi
 
+if [ ! -z "$KODI_ADDITIONAL_CONFIG_OPTIONS" ]; then
+  ADDITIONAL_CONFIG_OPTIONS=$KODI_ADDITIONAL_CONFIG_OPTIONS
+else
+  ADDITIONAL_CONFIG_OPTIONS=""
+fi
+
 export CXX_FOR_BUILD="$HOST_CXX"
 export CC_FOR_BUILD="$HOST_CC"
 export CXXFLAGS_FOR_BUILD="$HOST_CXXFLAGS"
@@ -274,7 +280,8 @@ PKG_CONFIGURE_OPTS_TARGET="gl_cv_func_gettimeofday_clobber=no \
                            --enable-texturepacker \
                            --with-ffmpeg=shared \
                            $KODI_CODEC \
-                           $KODI_PLAYER"
+                           $KODI_PLAYER \
+                           $ADDITIONAL_CONFIG_OPTIONS"
 
 pre_configure_host() {
 # kodi fails to build in subdirs
