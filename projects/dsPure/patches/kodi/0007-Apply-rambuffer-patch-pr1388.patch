@@ -1,0 +1,225 @@
+From 4b4a171e8daa24b3486c74d1a17d3bd02bd76b08 Mon Sep 17 00:00:00 2001
+From: Stanislav Vlasic <svlasic@gmail.com>
+Date: Fri, 23 Sep 2016 01:16:35 +0200
+Subject: [PATCH] Apply rambuffer patch (pr1388)
+
+- Use Free Ram Percentage as Buffer Size
+- Adjust Read Rate Based On Max Bitrate
+
+Enhancements to PR 831:
+
+- move variables over to advanced settings under <network> section ("freememorycachepercent"
+default 50% max 80% with hard limit of 1GB and 0 value will force filecache. It also removes
+"cachemembuffersize" variable as it is no longer needed)
+
+- Memory buffer is straight percentage of free ram (i.e. if 50% free ram is used ~75% of the
+50% will be forward looking buffer and ~25% of the 50% will be back buffer)
+
+- Rate limiting which fixes SMB issues with PR 831 as far as I can tell (1.25 times max
+bitrate up to 40 MB/s in which case it is throttled to max bitrate)
+
+- ios and linux fixes
+
+Advanced Settings Notes: This PR adds a new setting under advanced settings and removes the
+"cachemembuffersize" setting as it is no longer needed. The added setting is as follows:
+
+- "freememorycachepercent": The amount of free memory to use as buffer size.  Please note
+that of the percentage of free memory used ~75% will be used for forward buffering and ~25%
+will be used for the back buffer.  The default is 50% which is a good default for memory
+limted devices such as the atv2.  The max is 80 percent and there is a hard limit of 1GB
+buffer size irregardless of free ram.  Setting it to 0 will force filecaching (same as the
+way cachemembuffersize was used)
+---
+ xbmc/cores/VideoPlayer/VideoPlayer.cpp | 24 +++++++++++++++++++++++-
+ xbmc/cores/VideoPlayer/VideoPlayer.h   |  4 +++-
+ xbmc/filesystem/FileCache.cpp          | 32 +++++++++++++++++++++++---------
+ xbmc/settings/AdvancedSettings.cpp     |  4 ++--
+ xbmc/settings/AdvancedSettings.h       |  2 +-
+ 5 files changed, 52 insertions(+), 14 deletions(-)
+
+diff --git a/xbmc/cores/VideoPlayer/VideoPlayer.cpp b/xbmc/cores/VideoPlayer/VideoPlayer.cpp
+index b4a604c..90fa770 100644
+--- a/xbmc/cores/VideoPlayer/VideoPlayer.cpp
++++ b/xbmc/cores/VideoPlayer/VideoPlayer.cpp
+@@ -644,6 +644,7 @@ CVideoPlayer::CVideoPlayer(IPlayerCallback& callback)
+   m_caching = CACHESTATE_DONE;
+   m_HasVideo = false;
+   m_HasAudio = false;
++  m_readrate = 0;
+ 
+   memset(&m_SpeedState, 0, sizeof(m_SpeedState));
+ 
+@@ -890,7 +891,11 @@ bool CVideoPlayer::OpenDemuxStream()
+   int64_t len = m_pInputStream->GetLength();
+   int64_t tim = m_pDemuxer->GetStreamLength();
+   if(len > 0 && tim > 0)
+-    m_pInputStream->SetReadRate((unsigned int) (len * 1000 / tim));
++  {
++    //cap to intital read rate to 40 megabits/second if less than average bitrate * 1.25
++    m_readrate = std::min((unsigned int) ((len * 1000 / tim) * 1.25), (unsigned int) (40000000 / 8));
++    m_pInputStream->SetReadRate(m_readrate);
++  }
+ 
+   m_offset_pts = 0;
+ 
+@@ -1425,6 +1430,9 @@ void CVideoPlayer::Process()
+     // update application with our state
+     UpdateApplication(1000);
+ 
++    // update readrate based on peak bitrate
++    UpdateReadRate();
++
+     // make sure we run subtitle process here
+     m_VideoPlayerSubtitle->Process(m_clock.GetClock() + m_State.time_offset - m_VideoPlayerVideo->GetSubtitleDelay(), m_State.time_offset);
+ 
+@@ -4925,6 +4933,20 @@ void CVideoPlayer::UpdateApplication(double timeout)
+   m_UpdateApplication = m_clock.GetAbsoluteClock();
+ }
+ 
++void CVideoPlayer::UpdateReadRate()
++{
++  unsigned int bytespersecond = (m_VideoPlayerVideo->GetVideoBitrate() + m_VideoPlayerAudio->GetAudioBitrate()) / 8;
++
++  if (bytespersecond > m_readrate)
++  {
++    //if current bitrate * 1.25 is over 40 Mbs then cap at at max of actual bitrate or 40 Mb/s whichever is greater
++    //otherwise set read rate to current bitrate * 1.25
++    m_readrate = std::min((unsigned int)(bytespersecond * 1.25), std::max((unsigned int) bytespersecond, (unsigned int) (40000000 / 8)));
++
++    m_pInputStream->SetReadRate(m_readrate);
++  }
++}
++
+ void CVideoPlayer::SetVolume(float nVolume)
+ {
+   if (m_omxplayer_mode)
+diff --git a/xbmc/cores/VideoPlayer/VideoPlayer.h b/xbmc/cores/VideoPlayer/VideoPlayer.h
+index 3f39706..ac71db4 100644
+--- a/xbmc/cores/VideoPlayer/VideoPlayer.h
++++ b/xbmc/cores/VideoPlayer/VideoPlayer.h
+@@ -493,7 +493,7 @@ protected:
+   void UpdatePlayState(double timeout);
+   void UpdateStreamInfos();
+   void GetGeneralInfo(std::string& strVideoInfo);
+-
++  void UpdateReadRate();
+   double m_UpdateApplication;
+ 
+   bool m_players_created;
+@@ -505,6 +505,8 @@ protected:
+   XbmcThreads::EndTime m_ChannelEntryTimeOut;
+   CProcessInfo *m_processInfo;
+ 
++  unsigned int m_readrate;
++
+   CCurrentStream m_CurrentAudio;
+   CCurrentStream m_CurrentVideo;
+   CCurrentStream m_CurrentSubtitle;
+diff --git a/xbmc/filesystem/FileCache.cpp b/xbmc/filesystem/FileCache.cpp
+index 4519266..722e735 100644
+--- a/xbmc/filesystem/FileCache.cpp
++++ b/xbmc/filesystem/FileCache.cpp
+@@ -41,6 +41,9 @@
+ #include "linux/ConvUtils.h"
+ #endif
+ 
++#include <limits.h>
++#include <XMemUtils.h>
++
+ using namespace XFILE;
+ 
+ #define READ_CACHE_CHUNK_SIZE (64*1024)
+@@ -179,7 +182,7 @@ bool CFileCache::Open(const CURL& url)
+ 
+   if (!m_pCache)
+   {
+-    if (g_advancedSettings.m_cacheMemSize == 0)
++    if (g_advancedSettings.m_freeMemCachePercent == 0)
+     {
+       // Use cache on disk
+       m_pCache = new CSimpleFileCache();
+@@ -188,27 +191,38 @@ bool CFileCache::Open(const CURL& url)
+     else
+     {
+       size_t cacheSize;
+-      if (m_fileSize > 0 && m_fileSize < g_advancedSettings.m_cacheMemSize && !(m_flags & READ_AUDIO_VIDEO))
++ 
++      // Set cache size of m_freeMemCachePercent of free ram, with hardcoded 1GB upper limit
++      MEMORYSTATUSEX stat;
++      stat.dwLength = sizeof(MEMORYSTATUSEX);
++      GlobalMemoryStatusEx(&stat);
++
++      // Limit maxCache to 1GB
++      unsigned int maxCache = (1024 * 1024 * 1000);
++      double ramSize = (stat.ullAvailPhys * (g_advancedSettings.m_freeMemCachePercent / 100.00));
++      unsigned int cacheRam = std::min(static_cast<unsigned int>(ramSize), maxCache);
++
++      if (m_fileSize > 0 && m_fileSize < cacheRam && !(m_flags & READ_AUDIO_VIDEO))
+       {
+         // NOTE: We don't need to take into account READ_MULTI_STREAM here as it's only used for audio/video
+         cacheSize = m_fileSize;
+       }
+       else
+       {
+-        cacheSize = g_advancedSettings.m_cacheMemSize;
++        cacheSize = cacheRam;
+       }
+ 
+-      size_t back = cacheSize / 4;
+-      size_t front = cacheSize - back;
++      unsigned int backCache = static_cast<unsigned int>(cacheSize * 0.75);
++      unsigned int frontCache = cacheSize - backCache;
+       
+       if (m_flags & READ_MULTI_STREAM)
+       {
+         // READ_MULTI_STREAM requires double buffering, so use half the amount of memory for each buffer
+-        front /= 2;
+-        back /= 2;
++        frontCache /= 2;
++        backCache /= 2;
+       }
+-      m_pCache = new CCircularCache(front, back);
+-      m_forwardCacheSize = front;
++      m_pCache = new CCircularCache(std::max<unsigned int>(frontCache, 1024 * 1024), backCache);
++      m_forwardCacheSize = frontCache;
+     }
+ 
+     if (m_flags & READ_MULTI_STREAM)
+diff --git a/xbmc/settings/AdvancedSettings.cpp b/xbmc/settings/AdvancedSettings.cpp
+index 6beebe0..cd00a6c 100644
+--- a/xbmc/settings/AdvancedSettings.cpp
++++ b/xbmc/settings/AdvancedSettings.cpp
+@@ -355,7 +355,7 @@ void CAdvancedSettings::Initialize()
+   m_bPVRAutoScanIconsUserSet       = false;
+   m_iPVRNumericChannelSwitchTimeout = 1000;
+ 
+-  m_cacheMemSize = 1024 * 1024 * 20;
++  m_freeMemCachePercent = 50;
+   m_cacheBufferMode = CACHE_BUFFER_MODE_INTERNET; // Default (buffer all internet streams/filesystems)
+   // the following setting determines the readRate of a player data
+   // as multiply of the default data read rate
+@@ -761,7 +761,7 @@ void CAdvancedSettings::ParseSettingsFile(const std::string &file)
+   pElement = pRootElement->FirstChildElement("cache");
+   if (pElement)
+   {
+-    XMLUtils::GetUInt(pElement, "memorysize", m_cacheMemSize);
++    XMLUtils::GetInt(pElement, "freememorycachepercent", m_freeMemCachePercent, 0, 80);
+     XMLUtils::GetUInt(pElement, "buffermode", m_cacheBufferMode, 0, 4);
+     XMLUtils::GetFloat(pElement, "readfactor", m_cacheReadFactor);
+   }
+diff --git a/xbmc/settings/AdvancedSettings.h b/xbmc/settings/AdvancedSettings.h
+index 1727580..662ae9c 100644
+--- a/xbmc/settings/AdvancedSettings.h
++++ b/xbmc/settings/AdvancedSettings.h
+@@ -340,7 +340,7 @@ class CAdvancedSettings : public ISettingCallback, public ISettingsHandler
+     int  m_guiAlgorithmDirtyRegions;
+     unsigned int m_addonPackageFolderSize;
+ 
+-    unsigned int m_cacheMemSize;
++    int m_freeMemCachePercent;
+     unsigned int m_cacheBufferMode;
+     float m_cacheReadFactor;
+ 
+-- 
+2.6.6
+

@@ -145,6 +145,10 @@
   # build and install 'FishBMC' Visualization (yes / no)
     KODI_VIS_FISHBMC="no"
 
+  # Additional config options passed to Kodi
+  # Example usage:
+  #   KODI_ADDITIONAL_CONFIG_OPTIONS="--enable-suspend"
+
   # extra build dependeices
     EXTRA_DEPS="mkimage"
     EXTRA_DEPS_PKG="u-boot-tools"
