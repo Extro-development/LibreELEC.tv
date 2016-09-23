@@ -45,3 +45,9 @@ makeinstall_target() {
   mkdir -p $INSTALL/lib/modules/$(get_module_dir)/bcmdhd
   cp *.ko $INSTALL/lib/modules/$(get_module_dir)/bcmdhd
 }
+
+post_install() {
+  # Enable suspend/wakeup services
+  enable_service bcmdhd-sdio-aml-suspend.service
+  enable_service bcmdhd-sdio-aml-resume.service
+}

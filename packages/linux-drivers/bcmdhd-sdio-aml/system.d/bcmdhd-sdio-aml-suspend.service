@@ -1,0 +1,11 @@
+[Unit]
+Description=Broadcom WiFi suspend service
+Before=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ifconfig wlan0 down
+TimeoutSec=0
+
+[Install]
+WantedBy=sleep.target
