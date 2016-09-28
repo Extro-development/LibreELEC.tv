@@ -52,7 +52,7 @@
 
   # Kernel to use. values can be:
   # default:  default mainline kernel
-    LINUX="amlogic-3.14"
+    LINUX="dotsmart-3.14"
 
 
 ################################################################################
@@ -146,8 +146,10 @@
     KODI_VIS_FISHBMC="no"
 
   # Additional config options passed to Kodi
-  # Example usage:
-  #   KODI_ADDITIONAL_CONFIG_OPTIONS="--enable-suspend"
+    KODI_ADDITIONAL_CONFIG_OPTIONS="--enable-suspend"
+
+  # Kodi CEC device name, used in PulseEight CEC addon
+    KODI_CEC_DEV_NAME="dsPure"
 
   # extra build dependeices
     EXTRA_DEPS="mkimage"
