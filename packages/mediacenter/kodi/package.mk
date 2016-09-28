@@ -346,6 +346,11 @@ make_target() {
   sed -i -e "s|skin.estuary|$SKIN_DIR|g" $ROOT/$PKG_BUILD/xbmc/system.h
   sed -i -e "s|skin.estuary|$SKIN_DIR|g" $ROOT/$PKG_BUILD/system/settings/settings.xml
 
+  if [ ! -z "$KODI_CEC_DEV_NAME" ]; then
+    DEV_NAME="`echo $KODI_CEC_DEV_NAME`"
+    sed -i -e "s|<setting key=\"device_name\" type=\"string\" value=\"Kodi\" configurable=\"0\" \/>|<setting key=\"device_name\" type=\"string\" value=\"$DEV_NAME\" configurable=\"0\" \/>|g" $ROOT/$PKG_BUILD/system/peripherals.xml
+  fi
+
   make externals
   make kodi.bin
 
