@@ -44,6 +44,11 @@ case "$LINUX" in
     PKG_URL="https://github.com/Extro-development/linux-amlogic/archive/$PKG_VERSION.tar.gz"
     PKG_SOURCE_DIR="$PKG_NAME-amlogic-$PKG_VERSION*"
     ;;
+  dotsmart-3.14)
+	# Only until our changes are merged to GPL release
+    PKG_VERSION="d0bb281"
+    PKG_URL="http://www.stane1983.com/LibreELEC/$PKG_NAME-$LINUX-$PKG_VERSION.tar.gz"
+    ;;
   imx6)
     PKG_VERSION="3.14-mx6-sr"
     PKG_COMMIT="4386797"
