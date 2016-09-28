@@ -26,7 +26,6 @@ PKG_URL="https://github.com/Extro-development/bcmdhd-sdio-aml/archive/$PKG_VERSI
 PKG_SOURCE_DIR="$PKG_NAME-$PKG_VERSION*"
 PKG_DEPENDS_TARGET="toolchain linux wlan-firmware-aml"
 PKG_NEED_UNPACK="$LINUX_DEPENDS"
-PKG_PRIORITY="optional"
 PKG_SECTION="driver"
 PKG_SHORTDESC="bcmdhd-sdio-aml: Linux drivers for Ampak Broadcom based WLAN chips used in some devices based on Amlogic SoCs"
 PKG_LONGDESC="bcmdhd-sdio-aml: Linux drivers for Ampak Broadcom based WLAN chips used in some devices based on Amlogic SoCs"
