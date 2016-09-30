@@ -1,18 +1,19 @@
-From 0664e548325466f3361fce9d58b2b76aec783ccd Mon Sep 17 00:00:00 2001
+From 7f96dbee267652ccee46631b4582198c672b8303 Mon Sep 17 00:00:00 2001
 From: Stanislav Vlasic <svlasic@gmail.com>
 Date: Wed, 6 Jul 2016 02:10:43 +0200
 Subject: [PATCH] Amlogic power options
 
 ---
- configure.ac                                   |  53 ++++++++++
- xbmc/powermanagement/PowerManager.cpp          |   7 +-
- xbmc/powermanagement/linux/AMLPowerSyscall.cpp | 128 +++++++++++++++++++++++++
- xbmc/powermanagement/linux/AMLPowerSyscall.h   |  51 ++++++++++
- xbmc/powermanagement/linux/CMakeLists.txt      |   6 +-
- xbmc/powermanagement/linux/Makefile            |   3 +-
- 6 files changed, 243 insertions(+), 5 deletions(-)
- create mode 100644 xbmc/powermanagement/linux/AMLPowerSyscall.cpp
- create mode 100644 xbmc/powermanagement/linux/AMLPowerSyscall.h
+ configure.ac                                       |  53 +++++
+ xbmc/powermanagement/PowerManager.cpp              |   5 +-
+ .../linux/AMLLogindPowerSyscall.cpp                | 242 +++++++++++++++++++++
+ xbmc/powermanagement/linux/AMLLogindPowerSyscall.h |  65 ++++++
+ xbmc/powermanagement/linux/CMakeLists.txt          |   6 +-
+ xbmc/powermanagement/linux/LogindUPowerSyscall.cpp |   3 +-
+ xbmc/powermanagement/linux/Makefile                |   3 +-
+ 7 files changed, 372 insertions(+), 5 deletions(-)
+ create mode 100644 xbmc/powermanagement/linux/AMLLogindPowerSyscall.cpp
+ create mode 100644 xbmc/powermanagement/linux/AMLLogindPowerSyscall.h
 
 diff --git a/configure.ac b/configure.ac
 index daec619..d388375 100644
@@ -79,42 +80,35 @@ index daec619..d388375 100644
  if test "x$use_ssh" = "xno"; then
    AC_MSG_NOTICE(ssh support disabled by user)
 diff --git a/xbmc/powermanagement/PowerManager.cpp b/xbmc/powermanagement/PowerManager.cpp
-index 33c4eb4..a5a7b8b 100644
+index 33c4eb4..11d7014 100644
 --- a/xbmc/powermanagement/PowerManager.cpp
 +++ b/xbmc/powermanagement/PowerManager.cpp
 @@ -50,6 +50,7 @@
  #include "linux/ConsoleDeviceKitPowerSyscall.h"
  #include "linux/LogindUPowerSyscall.h"
  #include "linux/UPowerSyscall.h"
-+#include "linux/AMLPowerSyscall.h"
++#include "linux/AMLLogindPowerSyscall.h"
  #endif // HAS_DBUS
  #elif defined(TARGET_WINDOWS)
  #include "powermanagement/windows/Win32PowerSyscall.h"
-@@ -88,14 +89,16 @@ void CPowerManager::Initialize()
-   std::list< std::pair< std::function<bool()>,
-                         std::function<IPowerSyscall*()> > > powerManagers =
-   {
--    std::make_pair(CConsoleUPowerSyscall::HasConsoleKitAndUPower,
-+    /*std::make_pair(CConsoleUPowerSyscall::HasConsoleKitAndUPower,
-                    [] { return new CConsoleUPowerSyscall(); }),
-     std::make_pair(CConsoleDeviceKitPowerSyscall::HasDeviceConsoleKit,
+@@ -94,8 +95,10 @@ void CPowerManager::Initialize()
                     [] { return new CConsoleDeviceKitPowerSyscall(); }),
      std::make_pair(CLogindUPowerSyscall::HasLogind,
                     [] { return new CLogindUPowerSyscall(); }),
++    std::make_pair(CAMLLogindPowerSyscall::HasAMLLogind,
++                   [] { return new CAMLLogindPowerSyscall(); }),
      std::make_pair(CUPowerSyscall::HasUPower,
 -                   [] { return new CUPowerSyscall(); })
-+                   [] { return new CUPowerSyscall(); }),*/
-+    std::make_pair(CAMLPowerSyscall::HasAMLPowerSyscall,
-+                   [] { return new CAMLPowerSyscall(); })
++                   [] { return new CUPowerSyscall(); }),
    };
    for(const auto& powerManager : powerManagers)
    {
-diff --git a/xbmc/powermanagement/linux/AMLPowerSyscall.cpp b/xbmc/powermanagement/linux/AMLPowerSyscall.cpp
+diff --git a/xbmc/powermanagement/linux/AMLLogindPowerSyscall.cpp b/xbmc/powermanagement/linux/AMLLogindPowerSyscall.cpp
 new file mode 100644
-index 0000000..b0f9600
+index 0000000..2a78d1a
 --- /dev/null
-+++ b/xbmc/powermanagement/linux/AMLPowerSyscall.cpp
-@@ -0,0 +1,128 @@
++++ b/xbmc/powermanagement/linux/AMLLogindPowerSyscall.cpp
+@@ -0,0 +1,240 @@
 +/*
 + *      Copyright (C) 2012 Team XBMC
 + *      http://www.xbmc.org
@@ -137,84 +131,143 @@ index 0000000..b0f9600
 +
 +#include "system.h"
 +#include "utils/SysfsUtils.h"
-+#include "AMLPowerSyscall.h"
++#include "AMLLogindPowerSyscall.h"
 +#include "utils/AMLUtils.h"
 +#include "utils/log.h"
 +
-+CAMLPowerSyscall::CAMLPowerSyscall()
++#ifdef HAS_DBUS
++
++// logind DBus interface specification:
++// http://www.freedesktop.org/wiki/Software/Logind/logind
++//
++// Inhibitor Locks documentation:
++// http://www.freedesktop.org/wiki/Software/Logind/inhibit/
++
++#define LOGIND_DEST  "org.freedesktop.login1"
++#define LOGIND_PATH  "/org/freedesktop/login1"
++#define LOGIND_IFACE "org.freedesktop.login1.Manager"
++
++CAMLLogindPowerSyscall::CAMLLogindPowerSyscall()
 +{
++  m_delayLockFd = -1;
++  m_lowBattery = false;
++
++  CLog::Log(LOGINFO, "Selected Logind/UPower as PowerSyscall");
++
++  // Check if we have UPower. If not, we avoid any battery related operations.
++  CDBusMessage message("org.freedesktop.UPower", "/org/freedesktop/UPower", "org.freedesktop.UPower", "EnumerateDevices");
++  m_hasUPower = message.SendSystem() != NULL;
++
++  if (!m_hasUPower)
++    CLog::Log(LOGINFO, "LogindUPowerSyscall - UPower not found, battery information will not be available");
++
 +#ifdef XBMC_POWERDOWN
 +    m_CanPowerdown = true;
 +#else
 +    m_CanPowerdown = false;
-+#endif
-+#ifdef XBMC_SUSPEND
-+    m_CanSuspend   = true;
-+#else
-+    m_CanSuspend   = false;
-+#endif
-+#ifdef XBMC_HIBERNATE
-+  m_CanHibernate = true;
-+#else
-+  m_CanHibernate = false;
 +#endif
 +#ifdef XBMC_REBOOT
 +  m_CanReboot    = true;
 +#else
 +  m_CanReboot    = false;
 +#endif
++#ifdef XBMC_HIBERNATE
++  m_CanHibernate = true;
++#else
++  m_CanHibernate = false;
++#endif
++#ifdef XBMC_SUSPEND
++    m_CanSuspend   = true;
++#else
++    m_CanSuspend   = false;
++#endif
 +
-+  m_OnResume  = false;
-+  m_OnSuspend = false;
++  InhibitDelayLock();
++
++  m_batteryLevel = 0;
++
++  DBusError error;
++  dbus_error_init(&error);
++  m_connection = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
++
++  if (dbus_error_is_set(&error))
++  {
++    CLog::Log(LOGERROR, "LogindUPowerSyscall: Failed to get dbus connection: %s", error.message);
++    dbus_connection_close(m_connection);
++    dbus_connection_unref(m_connection);
++    m_connection = NULL;
++    dbus_error_free(&error);
++    return;
++  }
++
++  dbus_connection_set_exit_on_disconnect(m_connection, false);
++  dbus_bus_add_match(m_connection, "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'", NULL);
++
++  if (m_hasUPower)
++    dbus_bus_add_match(m_connection, "type='signal',interface='org.freedesktop.UPower',member='DeviceChanged'", NULL);
++
++  dbus_connection_flush(m_connection);
++  dbus_error_free(&error);
 +}
 +
-+bool CAMLPowerSyscall::Powerdown()
++CAMLLogindPowerSyscall::~CAMLLogindPowerSyscall()
 +{
-+  return true;
++  if (m_connection)
++  {
++    dbus_connection_close(m_connection);
++    dbus_connection_unref(m_connection);
++  }
++
++  ReleaseDelayLock();
 +}
 +
-+bool CAMLPowerSyscall::Suspend()
++bool CAMLLogindPowerSyscall::Powerdown()
++{
++  return LogindSetPowerState("PowerOff");
++}
++
++bool CAMLLogindPowerSyscall::Reboot()
++{
++  return LogindSetPowerState("Reboot");
++}
++
++bool CAMLLogindPowerSyscall::Suspend()
 +{
 +  m_OnSuspend = true;
 +  return true;
 +}
 +
-+bool CAMLPowerSyscall::Hibernate()
++bool CAMLLogindPowerSyscall::Hibernate()
 +{
 +  return false;
 +}
 +
-+bool CAMLPowerSyscall::Reboot()
-+{
-+  return true;
-+}
-+
-+bool CAMLPowerSyscall::CanPowerdown()
++bool CAMLLogindPowerSyscall::CanPowerdown()
 +{
 +  return m_CanPowerdown;
 +}
 +
-+bool CAMLPowerSyscall::CanSuspend()
++bool CAMLLogindPowerSyscall::CanSuspend()
 +{
 +  return m_CanSuspend;
 +}
 +
-+bool CAMLPowerSyscall::CanHibernate()
++bool CAMLLogindPowerSyscall::CanHibernate()
 +{
 +  return m_CanHibernate;
 +}
 +
-+bool CAMLPowerSyscall::CanReboot()
++bool CAMLLogindPowerSyscall::CanReboot()
 +{
 +  return m_CanReboot;
 +}
 +
-+int CAMLPowerSyscall::BatteryLevel()
++int CAMLLogindPowerSyscall::BatteryLevel()
 +{
 +  return 0;
 +}
 +
-+bool CAMLPowerSyscall::PumpPowerEvents(IPowerEventsCallback *callback)
++bool CAMLLogindPowerSyscall::PumpPowerEvents(IPowerEventsCallback *callback)
 +{
 +  bool bSuspended = false;
 +  if (m_OnSuspend)
@@ -239,19 +292,73 @@ index 0000000..b0f9600
 +  return true;
 +}
 +
-+bool CAMLPowerSyscall::HasAMLPowerSyscall()
++bool CAMLLogindPowerSyscall::HasAMLLogind()
 +{
-+  return aml_present();
++  return (aml_present() && (access("/run/systemd/seats/", F_OK) >= 0));
 +}
-diff --git a/xbmc/powermanagement/linux/AMLPowerSyscall.h b/xbmc/powermanagement/linux/AMLPowerSyscall.h
++
++bool CAMLLogindPowerSyscall::LogindSetPowerState(const char *state)
++{
++  CDBusMessage message(LOGIND_DEST, LOGIND_PATH, LOGIND_IFACE, state);
++  // The user_interaction boolean parameters can be used to control
++  // wether PolicyKit should interactively ask the user for authentication
++  // credentials if it needs to.
++  message.AppendArgument(false);
++  return message.SendSystem() != NULL;
++}
++
++void CAMLLogindPowerSyscall::InhibitDelayLock()
++{
++#ifdef DBUS_TYPE_UNIX_FD
++  CDBusMessage message("org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager", "Inhibit");
++  message.AppendArgument("sleep"); // what to inhibit
++  message.AppendArgument("XBMC"); // who
++  message.AppendArgument(""); // reason
++  message.AppendArgument("delay"); // mode
++
++  DBusMessage *reply = message.SendSystem();
++
++  if (!reply)
++  {
++    CLog::Log(LOGWARNING, "LogindUPowerSyscall - failed to inhibit sleep delay lock");
++    m_delayLockFd = -1;
++    return;
++  }
++
++  if (!dbus_message_get_args(reply, NULL, DBUS_TYPE_UNIX_FD, &m_delayLockFd, DBUS_TYPE_INVALID))
++  {
++    CLog::Log(LOGWARNING, "LogindUPowerSyscall - failed to get inhibit file descriptor");
++    m_delayLockFd = -1;
++    return;
++  }
++
++    CLog::Log(LOGDEBUG, "LogindUPowerSyscall - inhibit lock taken, fd %i", m_delayLockFd);
++#else
++    CLog::Log(LOGWARNING, "LogindUPowerSyscall - inhibit lock support not compiled in");
++#endif
++}
++
++void CAMLLogindPowerSyscall::ReleaseDelayLock()
++{
++  if (m_delayLockFd != -1)
++  {
++    close(m_delayLockFd);
++    m_delayLockFd = -1;
++    CLog::Log(LOGDEBUG, "LogindUPowerSyscall - delay lock released");
++  }
++}
++
++#endif
+diff --git a/xbmc/powermanagement/linux/AMLLogindPowerSyscall.h b/xbmc/powermanagement/linux/AMLLogindPowerSyscall.h
 new file mode 100644
-index 0000000..9af7beb
+index 0000000..737926e
 --- /dev/null
-+++ b/xbmc/powermanagement/linux/AMLPowerSyscall.h
-@@ -0,0 +1,51 @@
++++ b/xbmc/powermanagement/linux/AMLLogindPowerSyscall.h
+@@ -0,0 +1,65 @@
 +/*
-+ *      Copyright (C) 2012 Team XBMC
-+ *      http://www.xbmc.org
++ *      Copyright (C) 2012 Denis Yantarev
++ *      Copyright (C) 2005-2013 Team XBMC
++ *      http://xbmc.org
 + *
 + *  This Program is free software; you can redistribute it and/or modify
 + *  it under the terms of the GNU General Public License as published by
@@ -269,13 +376,16 @@ index 0000000..9af7beb
 + *
 + */
 +
-+#include "powermanagement/IPowerSyscall.h"
++#ifdef HAS_DBUS
 +
-+class CAMLPowerSyscall : public CPowerSyscallWithoutEvents
++#include "powermanagement/IPowerSyscall.h"
++#include "DBusUtil.h"
++
++class CAMLLogindPowerSyscall : public CAbstractPowerSyscall
 +{
 +public:
-+  CAMLPowerSyscall();
-+  virtual ~CAMLPowerSyscall() {}
++  CAMLLogindPowerSyscall();
++  ~CAMLLogindPowerSyscall();
 +
 +  virtual bool Powerdown();
 +  virtual bool Suspend();
@@ -289,9 +399,10 @@ index 0000000..9af7beb
 +  virtual int  BatteryLevel();
 +  virtual bool PumpPowerEvents(IPowerEventsCallback *callback);
 +
-+  static bool HasAMLPowerSyscall();
++  static bool HasAMLLogind();
 +
 +private:
++  DBusConnection *m_connection;
 +  bool m_CanPowerdown;
 +  bool m_CanSuspend;
 +  bool m_CanHibernate;
@@ -299,9 +410,18 @@ index 0000000..9af7beb
 +
 +  bool m_OnResume;
 +  bool m_OnSuspend;
++  bool m_hasUPower;
++  bool m_lowBattery;
++  int m_batteryLevel;
++  int m_delayLockFd; // file descriptor for the logind sleep delay lock
++  void InhibitDelayLock();
++  void ReleaseDelayLock();
++  static bool LogindSetPowerState(const char *state);
 +};
++
++#endif
 diff --git a/xbmc/powermanagement/linux/CMakeLists.txt b/xbmc/powermanagement/linux/CMakeLists.txt
-index 86bb935..c91dd29 100644
+index 86bb935..1825f77 100644
 --- a/xbmc/powermanagement/linux/CMakeLists.txt
 +++ b/xbmc/powermanagement/linux/CMakeLists.txt
 @@ -1,12 +1,14 @@
@@ -310,7 +430,7 @@ index 86bb935..c91dd29 100644
              UPowerSyscall.cpp
 -            LogindUPowerSyscall.cpp)
 +            LogindUPowerSyscall.cpp
-+            AMLPowerSyscall.cpp)
++            AMLLogindPowerSyscall.cpp)
  
  set(HEADERS ConsoleDeviceKitPowerSyscall.h
              ConsoleUPowerSyscall.h
@@ -318,11 +438,32 @@ index 86bb935..c91dd29 100644
              LogindUPowerSyscall.h
 -            UPowerSyscall.h)
 +            UPowerSyscall.h
-+            AMLPowerSyscall.h)
++            AMLLogindPowerSyscall.h)
  
  core_add_library(powermanagement_linux)
+diff --git a/xbmc/powermanagement/linux/LogindUPowerSyscall.cpp b/xbmc/powermanagement/linux/LogindUPowerSyscall.cpp
+index 4e5bcc6..db23c3d 100644
+--- a/xbmc/powermanagement/linux/LogindUPowerSyscall.cpp
++++ b/xbmc/powermanagement/linux/LogindUPowerSyscall.cpp
+@@ -22,6 +22,7 @@
+ 
+ #include "system.h"
+ #include "LogindUPowerSyscall.h"
++#include "utils/AMLUtils.h"
+ #include "utils/log.h"
+ 
+ #ifdef HAS_DBUS
+@@ -141,7 +142,7 @@ bool CLogindUPowerSyscall::HasLogind()
+   // recommended method by systemd devs. The seats directory
+   // doesn't exist unless logind created it and therefore is running.
+   // see also https://mail.gnome.org/archives/desktop-devel-list/2013-March/msg00092.html
+-  return (access("/run/systemd/seats/", F_OK) >= 0);
++  return (!aml_present() && (access("/run/systemd/seats/", F_OK) >= 0));
+ }
+ 
+ bool CLogindUPowerSyscall::LogindSetPowerState(const char *state)
 diff --git a/xbmc/powermanagement/linux/Makefile b/xbmc/powermanagement/linux/Makefile
-index e9d95fb..2268256 100644
+index e9d95fb..7db26b1 100644
 --- a/xbmc/powermanagement/linux/Makefile
 +++ b/xbmc/powermanagement/linux/Makefile
 @@ -1,7 +1,8 @@
@@ -331,7 +472,7 @@ index e9d95fb..2268256 100644
       UPowerSyscall.cpp \
 -     LogindUPowerSyscall.cpp
 +     LogindUPowerSyscall.cpp \
-+     AMLPowerSyscall.cpp
++     AMLLogindPowerSyscall.cpp
  
  LIB=powermanagement_linux.a
  
