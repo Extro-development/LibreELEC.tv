@@ -146,7 +146,7 @@
     KODI_VIS_FISHBMC="no"
 
   # Additional config options passed to Kodi
-    KODI_ADDITIONAL_CONFIG_OPTIONS="--enable-suspend"
+    KODI_ADDITIONAL_CONFIG_OPTIONS="--enable-suspend --enable-reboot"
 
   # Kodi CEC device name, used in PulseEight CEC addon
     KODI_CEC_DEV_NAME="dsPure"
