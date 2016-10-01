@@ -16,39 +16,27 @@
 #  along with OpenELEC.  If not, see <http://www.gnu.org/licenses/>.
 ################################################################################
 
-PKG_NAME="mediacenter"
-PKG_VERSION=""
+PKG_NAME="script.module.pyxbmct"
+PKG_VERSION="1.1.7"
 PKG_REV="1"
 PKG_ARCH="any"
-PKG_LICENSE="GPL"
-PKG_SITE="https://libreelec.tv"
-PKG_URL=""
-PKG_DEPENDS_TARGET="toolchain $MEDIACENTER"
-PKG_SECTION="virtual"
-PKG_SHORTDESC="Mediacenter: Metapackage"
-PKG_LONGDESC=""
+PKG_LICENSE="OSS"
+PKG_SITE="http://forum.kodi.tv/showthread.php?tid=174859"
+PKG_URL="http://mirrors.kodi.tv/addons/krypton/script.module.pyxbmct/$PKG_NAME-$PKG_VERSION.zip"
+PKG_DEPENDS_TARGET="Python"
+PKG_SECTION=""
+PKG_SOURCE_DIR="script.module.pyxbmct"
+PKG_SHORTDESC="script.module.pyxbmct"
+PKG_LONGDESC="script.module.pyxbmct"
 
 PKG_IS_ADDON="no"
 PKG_AUTORECONF="no"
 
-if [ "$MEDIACENTER" = "kodi" ]; then
-  PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET $MEDIACENTER-theme-$SKIN_DEFAULT"
+make_target() {
+  echo "install:" > $ROOT/$PKG_BUILD/Makefile
+  mkdir -p $INSTALL/usr/share/kodi/addons/$PKG_SOURCE_DIR/
+  cp -rf $ROOT/$PKG_BUILD/* $INSTALL/usr/share/kodi/addons/$PKG_SOURCE_DIR/
 
-  for i in $SKINS; do
-    PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET $MEDIACENTER-theme-$i"
-  done
-  
-# some python stuff needed for various addons
-  PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET Pillow \
-                                          simplejson \
-                                          pycrypto"
-
-# Additional tools
-  PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET tar"
-
-# other packages
-  PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET LibreELEC-settings \
-                                          xmlstarlet \
-                                          peripheral.joystick \
-                                          script.module.pyxbmct"
-fi
+  rm -rf $INSTALL/usr/share/kodi/addons/script.module.pyxbmct/Makefile
+  rm -rf $INSTALL/usr/share/kodi/addons/script.module.pyxbmct/Readme.md
+}
