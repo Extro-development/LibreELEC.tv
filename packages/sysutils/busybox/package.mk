@@ -249,8 +249,18 @@ makeinstall_init() {
     chmod 755 $INSTALL/platform_init
   fi
 
-  cp $PKG_DIR/scripts/functions $INSTALL
-  cp $PKG_DIR/scripts/init $INSTALL
+  if [ -f $PROJECT_DIR/$PROJECT/busybox/scripts/functions ]; then
+    cp $PROJECT_DIR/$PROJECT/busybox/scripts/functions $INSTALL
+  else
+    cp $PKG_DIR/scripts/functions $INSTALL
+  fi
+
+  if [ -f $PROJECT_DIR/$PROJECT/busybox/scripts/init ]; then
+    cp $PROJECT_DIR/$PROJECT/busybox/scripts/init $INSTALL
+  else
+    cp $PKG_DIR/scripts/init $INSTALL
+  fi
+
   sed -e "s/@DISTRONAME@/$DISTRONAME/g" \
       -e "s/@KERNEL_NAME@/$KERNEL_NAME/g" \
       -i $INSTALL/init
