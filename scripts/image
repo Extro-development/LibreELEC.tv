@@ -112,6 +112,15 @@ mkdir -p $INSTALL/flash
 mkdir -p $INSTALL/storage
 ln -sf /var/media $INSTALL/media
 
+# Check if there is any extra folders to create in rootfs
+if [ ! "$ROOTFS_EXTRA_FOLDERS" = "" ]; then
+  for folder in $ROOTFS_EXTRA_FOLDERS
+  do
+    mkdir -p $INSTALL/$folder
+  done
+fi
+
+
 if [ "$TARGET_ARCH" = "x86_64" -o "$TARGET_ARCH" = "powerpc64" ]; then
   ln -s /lib $INSTALL/lib64
   ln -s lib $INSTALL/usr/lib64
