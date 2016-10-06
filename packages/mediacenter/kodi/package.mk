@@ -437,6 +437,14 @@ post_makeinstall_target() {
   xmlstarlet ed -L --subnode "/addons" -t elem -n "addon" -v "repository.libreelec.tv" $ADDON_MANIFEST
   xmlstarlet ed -L --subnode "/addons" -t elem -n "addon" -v "service.libreelec.settings" $ADDON_MANIFEST
 
+  # Check if there is any extra addons to be added to addon-manifest.xml
+  if [ ! "$KODI_EXTRA_ADDONS" = "" ]; then
+    for addon in $KODI_EXTRA_ADDONS
+    do
+      xmlstarlet ed -L --subnode "/addons" -t elem -n "addon" -v "$addon" $ADDON_MANIFEST
+    done
+  fi
+
   # more binaddons cross compile badness meh
   sed -i -e "s:INCLUDE_DIR /usr/include/kodi:INCLUDE_DIR $SYSROOT_PREFIX/usr/include/kodi:g" $SYSROOT_PREFIX/usr/lib/kodi/KodiConfig.cmake
 
