@@ -49,6 +49,14 @@ if [ "$MEDIACENTER" = "kodi" ]; then
 # other packages
   PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET LibreELEC-settings \
                                           xmlstarlet \
-                                          peripheral.joystick \
-                                          script.module.pyxbmct"
+                                          peripheral.joystick"
+
+# Extra packages defined in project's options
+  if [ ! "$MEDIACENTER_ADDITIONAL_PACKAGES" = "" ]; then
+    for pkg in $MEDIACENTER_ADDITIONAL_PACKAGES
+    do
+      PKG_DEPENDS_TARGET="$PKG_DEPENDS_TARGET $pkg"
+    done
+  fi
+
 fi
