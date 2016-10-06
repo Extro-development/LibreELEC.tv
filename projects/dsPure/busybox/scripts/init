@@ -29,7 +29,6 @@
   /bin/busybox mkdir -p /sysroot
   /bin/busybox mkdir -p /storage
   /bin/busybox mkdir -p /recovery
-  /bin/busybox mkdir -p /usbdrive
 
   # mount all needed special filesystems
   /bin/busybox mount -t devtmpfs devtmpfs /dev
@@ -85,6 +84,9 @@
   clear
   hidecursor
 
+  # Hardcoded cache partition
+  cache_disk=/dev/cache
+
   # parse command line arguments
   for arg in $(cat /proc/cmdline); do
     case $arg in
@@ -114,17 +116,6 @@
             ;;
           /dev/*|LABEL=*|UUID=*)
             RUN_FSCK_DISKS="$RUN_FSCK_DISKS $disk"
-            ;;
-        esac
-        ;;
-      recovery=*)
-        recovery="${arg#*=}"
-        case $recovery in
-          ISCSI=*|NBD=*|NFS=*)
-            STORAGE_NETBOOT=yes
-            ;;
-          /dev/*|LABEL=*|UUID=*)
-            RUN_FSCK_DISKS="$RUN_FSCK_DISKS $recovery"
             ;;
         esac
         ;;
@@ -531,7 +522,7 @@
 
         # Select splash image based on current native resolution
         if [ -z "$SPLASHIMAGE" ]; then
-          vres="$(fbset 2>/dev/null | awk '/geometry/ { print $4 }')"
+          vres="$(cat /sys/class/display/mode | sed 's/[^0-9]*//g')"
 
           if [ -f /flash/oemsplash.png -o -f /flash/oemsplash-1080.png ]; then
             if [ -n "$vres" -a -f /flash/oemsplash-$vres.png ]; then
@@ -573,6 +564,10 @@
 
     if /bin/busybox mountpoint -q /storage ; then
       /bin/busybox umount /storage
+    fi
+
+    if /bin/busybox mountpoint -q /recovery ; then
+      /bin/busybox umount /recovery
     fi
 
     usleep 2000000
@@ -699,13 +694,13 @@
     fi
   }
 
-  mount_recovery() {
-    if [ "$LIVE" = "yes" ]; then
-      return
-    fi
+  backupcommandsExists() {
+    mount $cache_disk /recovery
     
-    if [ -n "$recovery" ]; then
-      mount_part "$recovery" "/recovery" "rw,noatime"
+    if [ -f /recovery/backup_commands.ini ]; then
+      return 0
+    else
+      return 1
     fi
   }
 
@@ -1000,90 +995,6 @@
     do_reboot
   }
 
-  ###
-  # Function will go trough tgz file, find root
-  # folders and delete them on host system
-  #
-  # Params: (1) - Full path to tgz file
-  ###
-  delete_folders() {
-    tar_file=$1
-    dirs="$(tar --exclude="*/*" -tf $tar_file)"
-
-    echo "$dirs" | while read -r line
-    do
-      rm -rf $line
-    done
-  }
-
-  check_backup_restore() {
-    if [ -f /recovery/backup_commands.ini ]; then
-      ds_backup=dotsmart_backup
-      wait_count=1
-      sda1_ok=0
-      /sbin/modprobe dwc_otg
-      echo "Waiting for device to become ready..."
-      while [ ! -e "/dev/sda1" -o wait_count = 5 ]; do
-        sleep 1;
-        wait_count=$((wait_count+1))
-      done
-      
-      if [ ! -e "/dev/sda1" ]; then
-        fw_setenv forcedroid 1
-        rm -rf /recovery/backup_commands.ini
-        reboot
-      fi
-
-      # Collect info from backup_commands.ini
-      perform_backup=$(cat /recovery/backup_commands.ini |  awk -F "=" '/perform_backup/ {print $2}')
-      perform_restore=$(cat /recovery/backup_commands.ini |  awk -F "=" '/perform_restore/ {print $2}')
-      backrestore_all=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_all/ {print $2}')
-      backrestore_android=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_android/ {print $2}')
-      backrestore_linux=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_linux/ {print $2}')
-      backrestore_file=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_file/ {print $2}')
-    
-      # if sda1 is already mounted, unmount it and remount to different location
-      if mount | grep /dev/sda1 > /dev/null; then
-        umount /dev/sda1
-        mount /dev/sda1 /usbdrive
-      else
-        mount /dev/sda1 /usbdrive
-      fi
-
-      if [ $perform_backup ]; then
-        #show_splash backup
-        # Check if dotsmart_backup folder exists. If not, create it
-        if [ ! -d /usbdrive/$ds_backup ]; then
-            mkdir -p /usbdrive/$ds_backup
-        fi
-        # We are performing backup
-        if [ $backrestore_all ]; then
-          # We are performing full backup
-          cd /storage
-          tar --selinux --acls --xattrs -czf /usbdrive/$ds_backup/$backrestore_file * .kodi .sysconfig
-        elif [ $backrestore_android ]; then
-          # We are performing android backup
-          cd /storage
-          tar --selinux --acls --xattrs -czf /usbdrive/$ds_backup/$backrestore_file *
-        elif [ $backrestore_linux ]; then
-          # We are performing linux backup
-          cd /storage
-          tar --selinux --acls --xattrs -czf /usbdrive/$ds_backup/$backrestore_file .kodi .sysconfig
-        fi
-      else
-         #show_splash restore
-         cd /storage
-         delete_folders /usbdrive/$ds_backup/$backrestore_file
-         tar --selinux -xzf /usbdrive/$ds_backup/$backrestore_file
-      fi
-    
-      rm /recovery/backup_commands.ini
-      umount /usbdrive
-      fw_setenv forcedroid 1
-      reboot
-    fi
-  }
-
   prepare_sysroot() {
     progress "Preparing system"
 
@@ -1096,6 +1007,7 @@
 
     # Just in case... problems with ssh if not correctly owned
     chown 0:0 /storage 2>/dev/null
+    chown 0:0 /recovery 2>/dev/null
 
     mount --move /flash /sysroot/flash
     mount --move /storage /sysroot/storage
@@ -1126,9 +1038,7 @@
       update_syslinux \
       load_splash \
       mount_storage \
-      mount_recovery \
       check_update \
-      check_backup_restore \
       prepare_sysroot; do
     $BOOT_STEP
     [ -n "$DEBUG" ] && break_after $BOOT_STEP
@@ -1177,6 +1087,8 @@
   if [ -f /sysroot/storage/.cache/reset_oe -o -f /sysroot/storage/.cache/reset_xbmc ] ; then
     INIT_UNIT="--unit=factory-reset.target"
   fi
+
+  [ backupcommandsExists ] INIT_UNIT="--unit=custom_backup-restore.target"
 
   # switch to new sysroot and start real init
   exec /bin/busybox switch_root /sysroot /usr/lib/systemd/systemd $INIT_ARGS $INIT_UNIT

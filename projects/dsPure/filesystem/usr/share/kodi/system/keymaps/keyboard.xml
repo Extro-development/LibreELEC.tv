@@ -189,6 +189,20 @@
     </keyboard>
   </LoginScreen>
   <Home>
+    <mouse>
+      <leftclick />
+      <middleclick />
+      <rightclick>Back</rightclick>
+      <doubleclick />
+      <wheeldown />
+      <wheelup />
+      <mousedrag />
+      <mousemove />
+    </mouse>
+    <remote>
+      <green>Info</green>
+      <blue>ContextMenu</blue>
+    </remote>
     <keyboard>
       <i>info</i>
       <end mod="ctrl">ShutDown()</end>
@@ -576,6 +590,16 @@
     </keyboard>
   </MyPictures>
   <ContextMenu>
+    <mouse>
+      <leftclick />
+      <middleclick />
+      <rightclick>Back</rightclick>
+      <doubleclick />
+      <wheeldown />
+      <wheelup />
+      <mousedrag />
+      <mousemove />
+    </mouse>
     <remote>
       <blue>Back</blue>
     </remote>
@@ -682,6 +706,19 @@
     </keyboard>
   </PVRSettings>
   <FileBrowser>
+    <mouse>
+      <leftclick />
+      <middleclick />
+      <rightclick>Back</rightclick>
+      <doubleclick />
+      <wheeldown />
+      <wheelup />
+      <mousedrag />
+      <mousemove />
+    </mouse>
+    <remote>
+      <blue>ContextMenu</blue>
+    </remote>
     <keyboard>
       <space>Highlight</space>
       <backspace mod="longpress">ActivateWindow(Home)</backspace>

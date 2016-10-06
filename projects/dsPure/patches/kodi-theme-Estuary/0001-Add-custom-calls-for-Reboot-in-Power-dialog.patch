@@ -1,0 +1,43 @@
+From c70f4fb0a0fad8074ff81a3bac39c8c8128d3970 Mon Sep 17 00:00:00 2001
+From: Stanislav Vlasic <svlasic@gmail.com>
+Date: Wed, 5 Oct 2016 05:39:54 +0200
+Subject: [PATCH] Add custom calls for Reboot in Power dialog
+
+---
+ 1080i/DialogButtonMenu.xml                  | 7 ++++++-
+ language/resource.language.en_gb/strings.po | 4 ++++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/1080i/DialogButtonMenu.xml b/1080i/DialogButtonMenu.xml
+index 0f884c7..d3e52c0 100644
+--- a/1080i/DialogButtonMenu.xml
++++ b/1080i/DialogButtonMenu.xml
+@@ -103,7 +103,12 @@
+ 				</item>
+ 				<item>
+ 					<label>$LOCALIZE[13013]</label>
+-					<onclick>Reset()</onclick>
++					<onclick>RunScript(/usr/share/kodi/addons/script.module.extrocore/main.py,rebootLinux)</onclick>
++					<visible>System.CanReboot</visible>
++				</item>
++				<item>
++					<label>$LOCALIZE[31200]</label>
++					<onclick>RunScript(/usr/share/kodi/addons/script.module.extrocore/main.py,rebootAndroid)</onclick>
+ 					<visible>System.CanReboot</visible>
+ 				</item>
+ 				<item>
+diff --git a/language/resource.language.en_gb/strings.po b/language/resource.language.en_gb/strings.po
+index 33fb44b..5a0ccce 100644
+--- a/language/resource.language.en_gb/strings.po
++++ b/language/resource.language.en_gb/strings.po
+@@ -739,3 +739,7 @@ msgctxt "#31144"
+ msgid "Enter add-on browser"
+ msgstr ""
+ 
++#: /1080i/DialogButtonMenu.xml:110
++msgctxt "#31200"
++msgid "Reboot to Android"
++msgstr ""
+-- 
+2.6.6
+

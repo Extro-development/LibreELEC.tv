@@ -99,7 +99,7 @@
     KODIPLAYER_DRIVER="libamcodec"
 
   # Modules to install in initramfs for early boot
-    INITRAMFS_MODULES=""
+    INITRAMFS_MODULES="dwc_otg"
 
   # additional drivers to install:
   # for a list of additinoal drivers see packages/linux-drivers
@@ -133,11 +133,17 @@
   # build with installer (yes / no)
     INSTALLER_SUPPORT="no"
 
+  # Extra packages to be added to mediacenter virtual package
+    MEDIACENTER_ADDITIONAL_PACKAGES="tar ExtroCore ExtroPower"
+
   # Additional config options passed to Kodi
     KODI_ADDITIONAL_CONFIG_OPTIONS="--enable-suspend --enable-reboot"
 
   # Kodi CEC device name, used in PulseEight CEC addon
     KODI_CEC_DEV_NAME="dsPure"
+
+  # Extra addons to be enabled in Kodi by default
+    KODI_EXTRA_ADDONS="script.module.extrocore plugin.program.extropower"
 
   # extra build dependeices
     EXTRA_DEPS="mkimage"
@@ -146,6 +152,5 @@
   # kernel image name
     KERNEL_NAME="kernel.img"
 
-  # set the addon dirs
-    ADDON_PATH="$ADDON_VERSION/$PROJECT/$TARGET_ARCH"
-    ADDON_URL="$ADDON_SERVER_URL/$ADDON_PATH"
+  # Extra folders in root file system separated by space
+    ROOTFS_EXTRA_FOLDERS="recovery usbdrive"

@@ -1,0 +1,43 @@
+From 5bc7b818c4ba13a6a1b676d5bfeab1d3c33d2c2f Mon Sep 17 00:00:00 2001
+From: Stanislav Vlasic <svlasic@gmail.com>
+Date: Mon, 3 Oct 2016 01:27:49 +0200
+Subject: [PATCH 1/2] No dev console
+
+Fix compile error:
+ISO C90 forbids mixed declarations and code
+---
+ init/main.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/init/main.c b/init/main.c
+index 008edce..45979c9 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -885,6 +885,7 @@ static int __ref kernel_init(void *unused)
+ 
+ static noinline void __init kernel_init_freeable(void)
+ {
++	char *console;
+ 	/*
+ 	 * Wait until kthreadd is all set-up.
+ 	 */
+@@ -915,8 +916,14 @@ static noinline void __init kernel_init_freeable(void)
+ 	do_basic_setup();
+ 
+ 	/* Open the /dev/console on the rootfs, this should never fail */
+-	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
+-		pr_err("Warning: unable to open an initial console.\n");
++	console = "/dev_console";
++
++	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0) {
++		sys_mknod(console, S_IFCHR|0600, (TTYAUX_MAJOR<<8)|1);
++		if (sys_open(console, O_RDWR, 0) < 0)
++			printk(KERN_WARNING "Warning: unable to open an initial console.\n");
++		sys_unlink(console);
++	}
+ 
+ 	(void) sys_dup(0);
+ 	(void) sys_dup(0);
+-- 
+2.6.6
+
