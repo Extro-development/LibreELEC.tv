@@ -17,7 +17,7 @@
 ################################################################################
 
 PKG_NAME="ExtroCore"
-PKG_VERSION="9548deb"
+PKG_VERSION="df7674a"
 PKG_REV="1"
 PKG_ARCH="any"
 PKG_LICENSE="GPL"

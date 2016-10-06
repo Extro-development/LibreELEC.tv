@@ -17,7 +17,7 @@
 ################################################################################
 
 PKG_NAME="ExtroPower"
-PKG_VERSION="b1a4169"
+PKG_VERSION="345cd4b"
 PKG_REV="1"
 PKG_ARCH="any"
 PKG_LICENSE="GPL"
