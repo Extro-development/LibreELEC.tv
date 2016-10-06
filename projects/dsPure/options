@@ -154,3 +154,6 @@
 
   # Extra folders in root file system separated by space
     ROOTFS_EXTRA_FOLDERS="recovery usbdrive"
+
+  # Custom name for Amlogic update.zip file
+    AML_CUSTOM_UPDATE_ZIP="$DISTRO-$PROJECT-update.zip"
