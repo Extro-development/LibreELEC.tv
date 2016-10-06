@@ -1,0 +1,10 @@
+[Unit]
+Description=Backup and restore
+DefaultDependencies=no
+
+[Service]
+Type=idle
+ExecStart=/usr/lib/libreelec/custom_backup-restore
+StandardInput=tty-force
+StandardOutput=inherit
+StandardError=inherit

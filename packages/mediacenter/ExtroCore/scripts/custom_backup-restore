@@ -1,0 +1,123 @@
+#!/bin/sh
+################################################################################
+#      This file is part of OpenELEC - http://www.openelec.tv
+#      Copyright (C) 2009-2014 Stephan Raue (stephan@openelec.tv)
+#
+#  OpenELEC is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  OpenELEC is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with OpenELEC.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
+. /usr/lib/libreelec/functions
+
+# Get NAME, which is DISTRONAME, ie. LibreELEC
+. /etc/os-release
+
+hidecursor
+
+###
+# Function will go trough tgz file, find root
+# folders and delete them on host system
+#
+# Params: (1) - Full path to tgz file
+###
+delete_folders() {
+	tar_file=$1
+	dirs="$(tar --exclude="*/*" -tf $tar_file)"
+
+	echo "$dirs" | while read -r line
+	do
+		rm -rf /storage/$line
+	done
+}
+
+echo "BACKUP/RESTORE IN PROGRESS"
+echo ""
+echo "Please do not reboot or turn off your ${NAME} device!"
+echo ""
+
+mount /dev/cache /recovery
+
+ds_backup=dotsmart_backup
+wait_count=1
+StartProgress spinner "Waiting for device to become ready..."
+while [ ! -e "/dev/sda1" -o "$wait_count" = "5" ]; do
+sleep 1;
+wait_count=$((wait_count+1))
+done
+
+if [ ! -e "/dev/sda1" ]; then
+	StopProgress "FAILED"
+	StartProgress countdown "Rebooting in 5s... " 5 "NOW"
+	fw_setenv forcedroid 1
+	rm -rf /recovery/backup_commands.ini
+else
+	# Collect info from backup_commands.ini
+	perform_backup=$(cat /recovery/backup_commands.ini |  awk -F "=" '/perform_backup/ {print $2}')
+	perform_restore=$(cat /recovery/backup_commands.ini |  awk -F "=" '/perform_restore/ {print $2}')
+	backrestore_all=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_all/ {print $2}')
+	backrestore_android=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_android/ {print $2}')
+	backrestore_linux=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_linux/ {print $2}')
+	backrestore_file=$(cat /recovery/backup_commands.ini |  awk -F "=" '/backrestore_file/ {print $2}')
+
+	# Create mountpoint if it does not exist
+	if [ ! -d /usbdrive ]; then
+		mkdir /usbdrive
+	fi
+
+	# if sda1 is already mounted, unmount it and remount to different location
+	if mount | grep /dev/sda1 > /dev/null; then
+		umount /dev/sda1
+		mount /dev/sda1 /usbdrive
+	else
+		mount /dev/sda1 /usbdrive
+	fi
+
+	if [ $perform_backup ]; then
+		#show_splash backup
+		# Check if dotsmart_backup folder exists. If not, create it
+		if [ ! -d /usbdrive/$ds_backup ]; then
+			mkdir -p /usbdrive/$ds_backup
+		fi
+		# We are performing backup
+		if [ $backrestore_all ]; then
+			# We are performing full backup
+			StartProgress spinner "Performing backup of all data... "
+			cd /storage
+			tar --selinux --acls --xattrs -czf /usbdrive/$ds_backup/$backrestore_file * .kodi .sysconfig
+		elif [ $backrestore_android ]; then
+			# We are performing android backup
+			StartProgress spinner "Performing backup of Android data... "
+			cd /storage
+			tar --selinux --acls --xattrs -czf /usbdrive/$ds_backup/$backrestore_file *
+		elif [ $backrestore_linux ]; then
+			# We are performing linux backup
+			StartProgress spinner "Performing backup of ${NAME} data... "
+			cd /storage
+			tar --selinux --acls --xattrs -czf /usbdrive/$ds_backup/$backrestore_file .kodi
+		fi
+		StopProgress "done."
+	else
+		StartProgress spinner "Performing restore... "
+		#show_splash restore
+		cd /storage
+		delete_folders /usbdrive/$ds_backup/$backrestore_file
+		tar --selinux -xzf /usbdrive/$ds_backup/$backrestore_file
+		StopProgress "done."
+	fi
+fi
+
+rm /recovery/backup_commands.ini
+fw_setenv forcedroid 1
+sync
+StartProgress countdown "Rebooting in 5s... " 5 "NOW"
+reboot -f
